@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback, useEffect } from "react";
+import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ChatPanel } from "./ChatPanel";
 import { NDAPreview } from "@/components/preview/NDAPreview";
@@ -59,8 +59,12 @@ export function ChatLayout() {
   const [error, setError] = useState<string | null>(null);
   const [ndaData, setNdaData] = useState<NDAFormData>({ ...initialFormData });
 
-  // Restore session from sessionStorage on mount
+  // Restore session or auto-start a new one
+  const hasInitialized = useRef(false);
   useEffect(() => {
+    if (hasInitialized.current) return;
+    hasInitialized.current = true;
+
     const stored = sessionStorage.getItem("chat_session_id");
     if (stored) {
       const id = parseInt(stored, 10);
@@ -80,8 +84,37 @@ export function ChatLayout() {
           })
           .catch(() => {
             sessionStorage.removeItem("chat_session_id");
+            autoGreet();
           });
+        return;
       }
+    }
+    // No existing session — auto-send a greeting to get the AI to introduce itself
+    autoGreet();
+  }, []);
+
+  const autoGreet = useCallback(async () => {
+    setIsLoading(true);
+    try {
+      const response = await sendChatMessage(
+        "Hi, I'd like to draft a Mutual NDA. Can you help me?",
+        null
+      );
+      setSessionId(response.session_id);
+      sessionStorage.setItem("chat_session_id", String(response.session_id));
+      setMessages([
+        {
+          id: `assistant-${response.message_id}`,
+          role: "assistant",
+          content: response.reply,
+        },
+      ]);
+      setNdaData(serverDataToFormData(response.nda_data));
+      setIsComplete(response.is_complete);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to start chat");
+    } finally {
+      setIsLoading(false);
     }
   }, []);
 
