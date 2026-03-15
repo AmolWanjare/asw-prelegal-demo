@@ -1,0 +1,83 @@
+@import "tailwindcss";
+
+@theme inline {
+  --font-sans: var(--font-dm-sans);
+  --font-display: var(--font-playfair);
+
+  --color-cream: #faf8f4;
+  --color-cream-dark: #f0ece4;
+  --color-parchment: #f5f0e8;
+  --color-charcoal: #1a1a2e;
+  --color-charcoal-light: #2d2d44;
+  --color-warm-gray: #6b6880;
+  --color-warm-gray-light: #706d82;
+  --color-amber: #8a6508;
+  --color-amber-light: #d4a843;
+  --color-amber-muted: rgba(138, 101, 8, 0.08);
+  --color-amber-border: rgba(138, 101, 8, 0.2);
+  --color-border: #e8e4dc;
+  --color-border-light: #f0ece4;
+  --color-error: #c44040;
+  --color-error-light: #fdf2f2;
+
+  /* Explicit opacity variants to avoid lab() color function in Turbopack */
+  --color-charcoal-10: rgba(26, 26, 46, 0.1);
+  --color-charcoal-20: rgba(26, 26, 46, 0.2);
+  --color-charcoal-30: rgba(26, 26, 46, 0.3);
+  --color-charcoal-40: rgba(26, 26, 46, 0.4);
+  --color-charcoal-85: rgba(26, 26, 46, 0.85);
+  --color-amber-20: rgba(138, 101, 8, 0.2);
+  --color-amber-border-50: rgba(138, 101, 8, 0.1);
+  --color-cream-dark-50: rgba(240, 236, 228, 0.5);
+}
+
+body {
+  background: var(--color-cream);
+  color: var(--color-charcoal);
+}
+
+/* Refined input styling */
+input[type="text"],
+input[type="date"],
+input[type="number"],
+textarea,
+select {
+  transition: border-color 0.2s ease, box-shadow 0.2s ease;
+}
+
+/* Custom scrollbar for document preview */
+.document-scroll::-webkit-scrollbar {
+  width: 6px;
+}
+.document-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.document-scroll::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 3px;
+}
+
+@media print {
+  .no-print {
+    display: none !important;
+  }
+  body {
+    background: white;
+  }
+}
+
+/* Subtle fade-in for step transitions */
+@keyframes fadeInUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fade-in-up {
+  animation: fadeInUp 0.4s ease-out;
+}
