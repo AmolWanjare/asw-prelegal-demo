@@ -85,8 +85,12 @@ const SECTIONS = [
   },
 ];
 
+const DELIM_START = "\u200B\u00AB";
+const DELIM_END = "\u00BB\u200B";
+
 function val(v: string) {
-  return `[[${v}]]`;
+  const sanitized = v.replace(/\u200B\u00AB|\u00BB\u200B/g, "");
+  return `${DELIM_START}${sanitized}${DELIM_END}`;
 }
 
 export function NDAStandardTerms({ data }: { data: NDAFormData }) {
@@ -107,7 +111,7 @@ export function NDAStandardTerms({ data }: { data: NDAFormData }) {
       <div className="space-y-5 text-sm">
         {SECTIONS.map((section) => {
           const raw = section.text(data);
-          const parts = raw.split(/\[\[(.+?)\]\]/g);
+          const parts = raw.split(new RegExp(`${DELIM_START}(.+?)${DELIM_END}`, "g"));
           return (
             <p key={section.num} className="text-charcoal/85 leading-[1.75]">
               <strong className="text-charcoal font-display">

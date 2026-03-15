@@ -1,3 +1,5 @@
+import type { ReactNode } from "react";
+
 const STEPS = [
   { label: "General Terms", icon: "01" },
   { label: "Party Details", icon: "02" },
@@ -10,7 +12,7 @@ interface WizardShellProps {
   onNext?: () => void;
   nextLabel?: string;
   nextDisabled?: boolean;
-  children: React.ReactNode;
+  children: ReactNode;
 }
 
 export function WizardShell({

@@ -11,13 +11,14 @@ export function NDAPreview({ data }: { data: NDAFormData }) {
   const [downloading, setDownloading] = useState(false);
 
   const handleDownload = async () => {
-    if (!documentRef.current) return;
+    const el = documentRef.current;
+    if (!el || downloading) return;
     setDownloading(true);
     try {
       const company1 = data.party1.company || "Party1";
       const company2 = data.party2.company || "Party2";
       const filename = `Mutual-NDA_${company1}_${company2}.pdf`;
-      await generatePdf(documentRef.current, filename);
+      await generatePdf(el, filename);
     } finally {
       setDownloading(false);
     }

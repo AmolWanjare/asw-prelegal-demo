@@ -57,7 +57,15 @@ export const useNDAStore = create<NDAStore>()(
     }),
     {
       name: "nda-form-storage",
-      storage: createJSONStorage(() => sessionStorage),
+      storage: createJSONStorage(() => {
+        if (typeof window !== "undefined") return sessionStorage;
+        return {
+          getItem: () => null,
+          setItem: () => {},
+          removeItem: () => {},
+        };
+      }),
+      skipHydration: true,
     }
   )
 );

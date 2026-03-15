@@ -12,6 +12,7 @@ export default function PreviewPage() {
   const [mounted, setMounted] = useState(false);
 
   useEffect(() => {
+    useNDAStore.persist.rehydrate();
     setMounted(true);
   }, []);
 
@@ -25,7 +26,7 @@ export default function PreviewPage() {
     );
   }
 
-  if (!formData.party1.name && !formData.party1.company) {
+  if (!formData.party1.name || !formData.party1.company) {
     router.push("/nda");
     return null;
   }

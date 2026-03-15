@@ -3,11 +3,15 @@ import { US_STATES } from "@/lib/constants";
 interface StateSelectProps {
   value: string;
   onChange: (value: string) => void;
+  id?: string;
+  "aria-describedby"?: string;
+  "aria-invalid"?: boolean;
 }
 
-export function StateSelect({ value, onChange }: StateSelectProps) {
+export function StateSelect({ value, onChange, id, ...ariaProps }: StateSelectProps) {
   return (
     <select
+      id={id}
       value={value}
       onChange={(e) => onChange(e.target.value)}
       className="w-full px-3.5 py-2.5 border border-border rounded-lg text-sm text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-amber/20 focus:border-amber appearance-none"
@@ -16,6 +20,7 @@ export function StateSelect({ value, onChange }: StateSelectProps) {
         backgroundRepeat: "no-repeat",
         backgroundPosition: "right 12px center",
       }}
+      {...ariaProps}
     >
       <option value="">Select a state...</option>
       {US_STATES.map((state) => (

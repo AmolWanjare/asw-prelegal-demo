@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useCallback } from "react";
+import { useState, useCallback, useEffect } from "react";
 import { useRouter } from "next/navigation";
 import { WizardShell } from "@/components/wizard/WizardShell";
 import { StepGeneralTerms } from "@/components/wizard/StepGeneralTerms";
@@ -13,6 +13,10 @@ export default function NDAPage() {
   const router = useRouter();
   const { currentStep, setStep, formData } = useNDAStore();
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  useEffect(() => {
+    useNDAStore.persist.rehydrate();
+  }, []);
 
   const validateAndAdvance = useCallback(() => {
     setErrors({});

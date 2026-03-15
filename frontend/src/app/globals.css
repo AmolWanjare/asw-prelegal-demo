@@ -10,11 +10,11 @@
   --color-charcoal: #1a1a2e;
   --color-charcoal-light: #2d2d44;
   --color-warm-gray: #6b6880;
-  --color-warm-gray-light: #9895a8;
-  --color-amber: #b8860b;
+  --color-warm-gray-light: #706d82;
+  --color-amber: #8a6508;
   --color-amber-light: #d4a843;
-  --color-amber-muted: rgba(184, 134, 11, 0.08);
-  --color-amber-border: rgba(184, 134, 11, 0.2);
+  --color-amber-muted: rgba(138, 101, 8, 0.08);
+  --color-amber-border: rgba(138, 101, 8, 0.2);
   --color-border: #e8e4dc;
   --color-border-light: #f0ece4;
   --color-error: #c44040;

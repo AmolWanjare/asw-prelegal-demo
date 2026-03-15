@@ -57,7 +57,9 @@ export function RadioGroup({ name, value, onChange, options }: RadioGroupProps) 
                     max={99}
                     value={opt.subInput.value}
                     onChange={(e) =>
-                      opt.subInput!.onChange(parseInt(e.target.value) || 1)
+                      opt.subInput!.onChange(
+                        Math.max(1, Math.min(99, e.target.valueAsNumber || 1))
+                      )
                     }
                     className="w-14 px-2 py-1 border border-amber-border rounded text-center text-sm bg-white focus:outline-none focus:ring-1 focus:ring-amber"
                   />
