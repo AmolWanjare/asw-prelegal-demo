@@ -122,7 +122,7 @@ export function NDAStandardTerms({ data }: { data: NDAFormData }) {
                   <span
                     key={i}
                     className="text-amber font-medium"
-                    style={{ borderBottom: "1px dotted rgba(184, 134, 11, 0.4)" }}
+                    style={{ borderBottom: "1px dotted rgba(138, 101, 8, 0.4)" }}
                   >
                     {part}
                   </span>

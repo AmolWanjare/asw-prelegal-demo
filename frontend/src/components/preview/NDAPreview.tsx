@@ -10,13 +10,16 @@ export function NDAPreview({ data }: { data: NDAFormData }) {
   const documentRef = useRef<HTMLDivElement>(null);
   const [downloading, setDownloading] = useState(false);
 
+  const sanitizeFilename = (s: string) =>
+    s.replace(/[^a-zA-Z0-9\-_ ]/g, "").trim() || "Party";
+
   const handleDownload = async () => {
     const el = documentRef.current;
     if (!el || downloading) return;
     setDownloading(true);
     try {
-      const company1 = data.party1.company || "Party1";
-      const company2 = data.party2.company || "Party2";
+      const company1 = sanitizeFilename(data.party1.company || "Party1");
+      const company2 = sanitizeFilename(data.party2.company || "Party2");
       const filename = `Mutual-NDA_${company1}_${company2}.pdf`;
       await generatePdf(el, filename);
     } finally {
@@ -37,13 +40,16 @@ export function NDAPreview({ data }: { data: NDAFormData }) {
           </p>
         </div>
         <button
+          type="button"
           onClick={handleDownload}
           disabled={downloading}
+          aria-busy={downloading}
           className="no-print shrink-0 px-5 py-2.5 text-sm font-semibold text-white bg-charcoal rounded-lg hover:bg-charcoal-light disabled:opacity-40 transition-all duration-200 flex items-center gap-2.5 shadow-sm"
         >
           {downloading ? (
             <>
               <svg
+                aria-hidden="true"
                 className="animate-spin h-4 w-4"
                 viewBox="0 0 24 24"
                 fill="none"
@@ -67,6 +73,7 @@ export function NDAPreview({ data }: { data: NDAFormData }) {
           ) : (
             <>
               <svg
+                aria-hidden="true"
                 className="w-4 h-4"
                 fill="none"
                 stroke="currentColor"

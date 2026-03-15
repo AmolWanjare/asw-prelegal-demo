@@ -1,3 +1,5 @@
+"use client";
+
 interface RadioOption {
   value: string;
   label: string;
@@ -14,11 +16,12 @@ interface RadioGroupProps {
   value: string;
   onChange: (value: string) => void;
   options: RadioOption[];
+  legendId?: string;
 }
 
-export function RadioGroup({ name, value, onChange, options }: RadioGroupProps) {
+export function RadioGroup({ name, value, onChange, options, legendId }: RadioGroupProps) {
   return (
-    <div className="space-y-2">
+    <div role="radiogroup" aria-labelledby={legendId} className="space-y-2">
       {options.map((opt) => {
         const isSelected = value === opt.value;
         return (
@@ -31,6 +34,7 @@ export function RadioGroup({ name, value, onChange, options }: RadioGroupProps) 
             }`}
           >
             <div
+              aria-hidden="true"
               className={`w-4 h-4 rounded-full border-2 flex items-center justify-center shrink-0 transition-colors duration-200 ${
                 isSelected ? "border-amber" : "border-warm-gray-light"
               }`}
@@ -55,7 +59,9 @@ export function RadioGroup({ name, value, onChange, options }: RadioGroupProps) 
                     type="number"
                     min={1}
                     max={99}
+                    aria-label={`Number of years for ${name}`}
                     value={opt.subInput.value}
+                    onClick={(e) => e.stopPropagation()}
                     onChange={(e) =>
                       opt.subInput!.onChange(
                         Math.max(1, Math.min(99, e.target.valueAsNumber || 1))

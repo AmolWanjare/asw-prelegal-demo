@@ -1,3 +1,5 @@
+"use client";
+
 import { US_STATES } from "@/lib/constants";
 
 interface StateSelectProps {
