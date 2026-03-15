@@ -26,9 +26,9 @@ export function NDACoverPage({ data }: { data: NDAFormData }) {
       {/* Document header with decorative rule */}
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-4 mb-4">
-          <div className="w-16 h-px bg-charcoal/30" />
+          <div className="w-16 h-px bg-charcoal-30" />
           <div className="w-1.5 h-1.5 rounded-full bg-amber" />
-          <div className="w-16 h-px bg-charcoal/30" />
+          <div className="w-16 h-px bg-charcoal-30" />
         </div>
         <h1 className="text-2xl font-display font-bold text-charcoal tracking-tight">
           Mutual Non-Disclosure Agreement
@@ -93,7 +93,7 @@ export function NDACoverPage({ data }: { data: NDAFormData }) {
       </div>
 
       {/* Signature block */}
-      <div className="mt-10 pt-6 border-t border-charcoal/10">
+      <div className="mt-10 pt-6 border-t border-charcoal-10">
         <p className="text-sm text-warm-gray italic mb-8">
           By signing this Cover Page, each party agrees to enter into this MNDA
           as of the Effective Date.
@@ -105,7 +105,7 @@ export function NDACoverPage({ data }: { data: NDAFormData }) {
             { label: "Party 2", party: data.party2 },
           ].map(({ label, party }) => (
             <div key={label} className="space-y-5">
-              <h4 className="font-display font-semibold text-sm text-charcoal border-b border-charcoal/20 pb-2">
+              <h4 className="font-display font-semibold text-sm text-charcoal border-b border-charcoal-20 pb-2">
                 {label}
               </h4>
 
@@ -113,7 +113,7 @@ export function NDACoverPage({ data }: { data: NDAFormData }) {
                 <p className="text-[10px] text-warm-gray-light uppercase tracking-widest mb-2">
                   Signature
                 </p>
-                <div className="border-b border-charcoal/40 h-10" />
+                <div className="border-b border-charcoal-40 h-10" />
               </div>
 
               {[

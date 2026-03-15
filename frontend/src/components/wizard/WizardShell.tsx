@@ -108,7 +108,7 @@ export function WizardShell({
                   {/* Active indicator bar */}
                   <div
                     className={`absolute bottom-0 left-0 right-0 h-0.5 transition-colors duration-300 ${
-                      isActive ? "bg-amber" : isCompleted ? "bg-amber/20" : "bg-transparent"
+                      isActive ? "bg-amber" : isCompleted ? "bg-amber-20" : "bg-transparent"
                     }`}
                   />
                 </li>
@@ -131,7 +131,7 @@ export function WizardShell({
               type="button"
               onClick={onBack}
               disabled={!onBack}
-              className="group px-5 py-2.5 text-sm font-medium text-warm-gray border border-border rounded-lg hover:border-charcoal/20 hover:text-charcoal disabled:opacity-0 disabled:pointer-events-none transition-all duration-200 flex items-center gap-2"
+              className="group px-5 py-2.5 text-sm font-medium text-warm-gray border border-border rounded-lg hover:border-charcoal-20 hover:text-charcoal disabled:opacity-0 disabled:pointer-events-none transition-all duration-200 flex items-center gap-2"
             >
               <svg aria-hidden="true" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="transition-transform group-hover:-translate-x-0.5">
                 <polyline points="15 18 9 12 15 6" />

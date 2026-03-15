@@ -30,7 +30,7 @@ export function RadioGroup({ name, value, onChange, options, legendId }: RadioGr
             className={`flex items-center gap-3.5 p-3.5 rounded-lg border cursor-pointer transition-all duration-200 ${
               isSelected
                 ? "border-amber-border bg-amber-muted"
-                : "border-border hover:border-amber-border/50 hover:bg-cream-dark/50"
+                : "border-border hover:border-amber-border-50 hover:bg-cream-dark-50"
             }`}
           >
             <div

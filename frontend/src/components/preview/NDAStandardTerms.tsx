@@ -99,9 +99,9 @@ export function NDAStandardTerms({ data }: { data: NDAFormData }) {
       {/* Section header */}
       <div className="text-center mb-8">
         <div className="flex items-center justify-center gap-4 mb-4">
-          <div className="w-16 h-px bg-charcoal/30" />
+          <div className="w-16 h-px bg-charcoal-30" />
           <div className="w-1.5 h-1.5 rounded-full bg-amber" />
-          <div className="w-16 h-px bg-charcoal/30" />
+          <div className="w-16 h-px bg-charcoal-30" />
         </div>
         <h2 className="text-xl font-display font-bold text-charcoal tracking-tight">
           Standard Terms
@@ -113,7 +113,7 @@ export function NDAStandardTerms({ data }: { data: NDAFormData }) {
           const raw = section.text(data);
           const parts = raw.split(new RegExp(`${DELIM_START}(.+?)${DELIM_END}`, "g"));
           return (
-            <p key={section.num} className="text-charcoal/85 leading-[1.75]">
+            <p key={section.num} className="text-charcoal-85 leading-[1.75]">
               <strong className="text-charcoal font-display">
                 {section.num}. {section.title}.
               </strong>{" "}

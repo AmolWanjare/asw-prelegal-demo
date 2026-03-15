@@ -22,7 +22,7 @@ function PartyFieldset({
   errors: Record<string, string>;
 }) {
   const inputClass =
-    "w-full px-3.5 py-2.5 border border-border rounded-lg text-sm text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-amber/20 focus:border-amber placeholder:text-warm-gray-light";
+    "w-full px-3.5 py-2.5 border border-border rounded-lg text-sm text-charcoal bg-white focus:outline-none focus:ring-2 focus:ring-amber-20 focus:border-amber placeholder:text-warm-gray-light";
 
   return (
     <div className="bg-white rounded-xl border border-border p-6 space-y-5 shadow-sm">

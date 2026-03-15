@@ -19,6 +19,16 @@
   --color-border-light: #f0ece4;
   --color-error: #c44040;
   --color-error-light: #fdf2f2;
+
+  /* Explicit opacity variants to avoid lab() color function in Turbopack */
+  --color-charcoal-10: rgba(26, 26, 46, 0.1);
+  --color-charcoal-20: rgba(26, 26, 46, 0.2);
+  --color-charcoal-30: rgba(26, 26, 46, 0.3);
+  --color-charcoal-40: rgba(26, 26, 46, 0.4);
+  --color-charcoal-85: rgba(26, 26, 46, 0.85);
+  --color-amber-20: rgba(138, 101, 8, 0.2);
+  --color-amber-border-50: rgba(138, 101, 8, 0.1);
+  --color-cream-dark-50: rgba(240, 236, 228, 0.5);
 }
 
 body {
