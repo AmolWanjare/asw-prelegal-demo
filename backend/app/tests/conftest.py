@@ -6,7 +6,7 @@ from sqlalchemy.pool import StaticPool
 
 from ..database import Base
 from ..dependencies import get_db
-from ..models import User  # noqa: F401 — register all models with Base
+from ..models import User, Conversation, Message  # noqa: F401 — register all models with Base
 from ..main import app
 
 engine = create_engine(

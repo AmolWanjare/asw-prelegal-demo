@@ -8,7 +8,7 @@ from fastapi.staticfiles import StaticFiles
 
 from .config import settings
 from .database import create_tables
-from .routers import auth, health
+from .routers import auth, chat, health
 
 
 @asynccontextmanager
@@ -39,6 +39,7 @@ app.add_middleware(
 # API routes
 app.include_router(health.router, prefix="/api")
 app.include_router(auth.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
 
 # Serve static frontend build (must be last — catch-all)
 if os.path.isdir(settings.STATIC_DIR):
