@@ -221,12 +221,6 @@ def call_llm(
         messages=messages,
         response_format=NDA_FIELD_SCHEMA,
         api_key=settings.OPENROUTER_API_KEY,
-        extra_body={
-            "provider": {
-                "order": ["Cerebras"],
-                "allow_fallbacks": False,
-            }
-        },
     )
 
     raw = response.choices[0].message.content
