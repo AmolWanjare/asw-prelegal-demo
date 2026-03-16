@@ -4,7 +4,10 @@ import { useState, useCallback, useEffect, useRef } from "react";
 import { useRouter } from "next/navigation";
 import { ChatPanel } from "./ChatPanel";
 import { NDAPreview } from "@/components/preview/NDAPreview";
+import { DocumentFieldsPreview } from "@/components/preview/DocumentFieldsPreview";
 import { useNDAStore, initialFormData } from "@/lib/ndaStore";
+import { useDocumentStore } from "@/lib/documentStore";
+import { getDocumentEntry } from "@/lib/documentCatalog";
 import type { NDAFormData } from "@/lib/ndaSchema";
 import {
   sendChatMessage,
@@ -24,14 +27,12 @@ function serverDataToFormData(
   const base = { ...initialFormData };
   const { party1, party2, ...top } = serverData;
 
-  // Merge top-level non-null fields
   for (const [k, v] of Object.entries(top)) {
     if (v != null && k in base) {
       (base as Record<string, unknown>)[k] = v;
     }
   }
 
-  // Merge party fields
   if (party1 && typeof party1 === "object") {
     base.party1 = { ...base.party1 };
     for (const [k, v] of Object.entries(party1 as Record<string, unknown>)) {
@@ -51,13 +52,15 @@ function serverDataToFormData(
 export function ChatLayout() {
   const router = useRouter();
   const { updateForm, updateParty1, updateParty2 } = useNDAStore();
+  const { setDocumentType: storeSetDocType, setDocumentData: storeSetDocData } = useDocumentStore();
 
   const [messages, setMessages] = useState<ChatMsg[]>([]);
   const [sessionId, setSessionId] = useState<number | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isComplete, setIsComplete] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [ndaData, setNdaData] = useState<NDAFormData>({ ...initialFormData });
+  const [documentData, setDocumentData] = useState<Record<string, unknown>>({});
+  const [documentType, setDocumentType] = useState<string>("generic");
 
   // Restore session or auto-start a new one
   const hasInitialized = useRef(false);
@@ -73,7 +76,8 @@ export function ChatLayout() {
           .then((data) => {
             setSessionId(data.session_id);
             setIsComplete(data.is_complete);
-            setNdaData(serverDataToFormData(data.nda_data));
+            setDocumentData(data.document_data);
+            setDocumentType(data.document_type);
             setMessages(
               data.messages.map((m) => ({
                 id: String(m.id),
@@ -89,7 +93,6 @@ export function ChatLayout() {
         return;
       }
     }
-    // No existing session — auto-send a greeting to get the AI to introduce itself
     autoGreet();
   }, []);
 
@@ -97,8 +100,9 @@ export function ChatLayout() {
     setIsLoading(true);
     try {
       const response = await sendChatMessage(
-        "Hi, I'd like to draft a Mutual NDA. Can you help me?",
-        null
+        "Hello, I need help drafting a legal document.",
+        null,
+        "generic"
       );
       setSessionId(response.session_id);
       sessionStorage.setItem("chat_session_id", String(response.session_id));
@@ -109,7 +113,8 @@ export function ChatLayout() {
           content: response.reply,
         },
       ]);
-      setNdaData(serverDataToFormData(response.nda_data));
+      setDocumentData(response.document_data);
+      setDocumentType(response.document_type);
       setIsComplete(response.is_complete);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to start chat");
@@ -147,8 +152,8 @@ export function ChatLayout() {
         };
         setMessages((prev) => [...prev, assistantMsg]);
 
-        // Use the server's authoritative merged nda_data
-        setNdaData(serverDataToFormData(response.nda_data));
+        setDocumentData(response.document_data);
+        setDocumentType(response.document_type);
         setIsComplete(response.is_complete);
       } catch (err) {
         setError(
@@ -162,13 +167,19 @@ export function ChatLayout() {
   );
 
   const handleGenerate = useCallback(() => {
-    // Push ndaData to the existing Zustand store so the preview page can use it
-    const { party1, party2, ...topLevel } = ndaData;
-    updateForm(topLevel);
-    updateParty1(party1);
-    updateParty2(party2);
-    router.push("/nda/preview");
-  }, [ndaData, updateForm, updateParty1, updateParty2, router]);
+    if (documentType === "mutual_nda") {
+      const ndaData = serverDataToFormData(documentData);
+      const { party1, party2, ...topLevel } = ndaData;
+      updateForm(topLevel);
+      updateParty1(party1);
+      updateParty2(party2);
+      router.push("/nda/preview");
+    } else {
+      storeSetDocType(documentType);
+      storeSetDocData(documentData);
+      router.push(`/document/${documentType}/preview`);
+    }
+  }, [documentData, documentType, updateForm, updateParty1, updateParty2, router, storeSetDocType, storeSetDocData]);
 
   const handleStartOver = useCallback(async () => {
     if (sessionId) {
@@ -181,10 +192,23 @@ export function ChatLayout() {
     sessionStorage.removeItem("chat_session_id");
     setSessionId(null);
     setMessages([]);
-    setNdaData({ ...initialFormData });
+    setDocumentData({});
+    setDocumentType("generic");
     setIsComplete(false);
     setError(null);
-  }, [sessionId]);
+    // Re-greet so the chat is not left empty
+    autoGreet();
+  }, [sessionId, autoGreet]);
+
+  const docEntry = getDocumentEntry(documentType);
+  const subtitle = docEntry?.name
+    ? `${docEntry.name} Drafter`
+    : "Legal Document Drafter";
+  const completionLabel = docEntry?.name || "Document";
+
+  // Determine which preview to show
+  const isNDA = documentType === "mutual_nda";
+  const ndaData = isNDA ? serverDataToFormData(documentData) : null;
 
   return (
     <div className="flex h-screen bg-cream">
@@ -198,6 +222,8 @@ export function ChatLayout() {
           onSend={handleSend}
           onGenerate={handleGenerate}
           onStartOver={handleStartOver}
+          subtitle={subtitle}
+          completionLabel={completionLabel}
         />
       </div>
 
@@ -216,7 +242,15 @@ export function ChatLayout() {
         {/* Scrollable preview */}
         <div className="flex-1 overflow-y-auto px-6 py-6 document-scroll">
           <div className="max-w-2xl mx-auto">
-            <NDAPreview data={ndaData} hideDownload />
+            {isNDA && ndaData ? (
+              <NDAPreview data={ndaData} hideDownload />
+            ) : (
+              <DocumentFieldsPreview
+                data={documentData}
+                documentType={documentType}
+                hideDownload
+              />
+            )}
           </div>
         </div>
       </div>

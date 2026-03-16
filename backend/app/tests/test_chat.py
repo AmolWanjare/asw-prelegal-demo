@@ -1,7 +1,7 @@
 import json
 from unittest.mock import MagicMock, patch
 
-from ..schemas.chat import ExtractedFields, LLMResponse
+from ..schemas.chat import LLMResponse
 from ..services.chat_service import call_llm, _extract_plain_text_reply, _parse_llm_response
 
 SIGNUP_DATA = {
@@ -18,13 +18,13 @@ def _signup_and_get_cookie(client):
 
 MOCK_LLM_RESPONSE = LLMResponse(
     reply="Great! What is the purpose of this NDA?",
-    extracted_fields=ExtractedFields(),
+    extracted_fields={},
     is_complete=False,
 )
 
 MOCK_LLM_WITH_FIELDS = LLMResponse(
     reply="Got it, the purpose is set.",
-    extracted_fields=ExtractedFields(purpose="Business evaluation"),
+    extracted_fields={"purpose": "Business evaluation"},
     is_complete=False,
 )
 
@@ -39,7 +39,7 @@ def test_send_message_creates_session(mock_llm, client):
     cookie = _signup_and_get_cookie(client)
     resp = client.post(
         "/api/chat/message",
-        json={"message": "I want to create an NDA"},
+        json={"message": "I want to create an NDA", "document_type": "mutual_nda"},
         cookies={"prelegal_session": cookie},
     )
     assert resp.status_code == 200
@@ -47,6 +47,21 @@ def test_send_message_creates_session(mock_llm, client):
     assert data["session_id"] > 0
     assert data["reply"] == MOCK_LLM_RESPONSE.reply
     assert data["is_complete"] is False
+    assert data["document_type"] == "mutual_nda"
+
+
+@patch("app.routers.chat.call_llm", return_value=MOCK_LLM_RESPONSE)
+def test_send_message_creates_generic_session(mock_llm, client):
+    """Default document_type is 'generic' (discovery mode)."""
+    cookie = _signup_and_get_cookie(client)
+    resp = client.post(
+        "/api/chat/message",
+        json={"message": "hello"},
+        cookies={"prelegal_session": cookie},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["document_type"] == "generic"
 
 
 @patch("app.routers.chat.call_llm", return_value=MOCK_LLM_WITH_FIELDS)
@@ -54,12 +69,12 @@ def test_send_message_extracts_fields(mock_llm, client):
     cookie = _signup_and_get_cookie(client)
     resp = client.post(
         "/api/chat/message",
-        json={"message": "The purpose is business evaluation"},
+        json={"message": "The purpose is business evaluation", "document_type": "mutual_nda"},
         cookies={"prelegal_session": cookie},
     )
     data = resp.json()
     assert data["extracted_fields"]["purpose"] == "Business evaluation"
-    assert data["nda_data"]["purpose"] == "Business evaluation"
+    assert data["document_data"]["purpose"] == "Business evaluation"
 
 
 @patch("app.routers.chat.call_llm", return_value=MOCK_LLM_RESPONSE)
@@ -68,7 +83,7 @@ def test_reuse_session(mock_llm, client):
 
     resp1 = client.post(
         "/api/chat/message",
-        json={"message": "hello"},
+        json={"message": "hello", "document_type": "mutual_nda"},
         cookies={"prelegal_session": cookie},
     )
     session_id = resp1.json()["session_id"]
@@ -87,7 +102,7 @@ def test_get_session_messages(mock_llm, client):
 
     resp = client.post(
         "/api/chat/message",
-        json={"message": "hello"},
+        json={"message": "hello", "document_type": "mutual_nda"},
         cookies={"prelegal_session": cookie},
     )
     session_id = resp.json()["session_id"]
@@ -101,6 +116,8 @@ def test_get_session_messages(mock_llm, client):
     assert len(data["messages"]) == 2  # user + assistant
     assert data["messages"][0]["role"] == "user"
     assert data["messages"][1]["role"] == "assistant"
+    assert "document_data" in data
+    assert data["document_type"] == "mutual_nda"
 
 
 def test_get_session_wrong_user(client):
@@ -111,7 +128,7 @@ def test_get_session_wrong_user(client):
     with patch("app.routers.chat.call_llm", return_value=MOCK_LLM_RESPONSE):
         resp = client.post(
             "/api/chat/message",
-            json={"message": "hello"},
+            json={"message": "hello", "document_type": "mutual_nda"},
             cookies={"prelegal_session": cookie1},
         )
     session_id = resp.json()["session_id"]
@@ -137,7 +154,7 @@ def test_delete_session(mock_llm, client):
 
     resp = client.post(
         "/api/chat/message",
-        json={"message": "hello"},
+        json={"message": "hello", "document_type": "mutual_nda"},
         cookies={"prelegal_session": cookie},
     )
     session_id = resp.json()["session_id"]
@@ -153,6 +170,31 @@ def test_delete_session(mock_llm, client):
         cookies={"prelegal_session": cookie},
     )
     assert resp3.status_code == 404
+
+
+@patch("app.routers.chat.call_llm", return_value=MOCK_LLM_RESPONSE)
+def test_send_message_with_document_type(mock_llm, client):
+    """Creating a session with a specific document type."""
+    cookie = _signup_and_get_cookie(client)
+    resp = client.post(
+        "/api/chat/message",
+        json={"message": "hello", "document_type": "cloud_service_agreement"},
+        cookies={"prelegal_session": cookie},
+    )
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["document_type"] == "cloud_service_agreement"
+
+
+def test_send_message_unknown_document_type(client):
+    """Unknown document type should return 400."""
+    cookie = _signup_and_get_cookie(client)
+    resp = client.post(
+        "/api/chat/message",
+        json={"message": "hello", "document_type": "fake_document"},
+        cookies={"prelegal_session": cookie},
+    )
+    assert resp.status_code == 400
 
 
 # --- Plain-text fallback tests ---
@@ -174,14 +216,15 @@ def test_extract_plain_text_reply_too_short():
 def test_call_llm_plain_text_fallback(mock_call):
     """When the LLM returns plain text instead of JSON, use it as the reply."""
     plain_reply = "Sure, I can help you draft that NDA. What is the purpose?"
-    # Both attempts return plain text (not JSON)
     mock_call.side_effect = [
         f'"{plain_reply}"',
         f'"{plain_reply}"',
     ]
-    result = call_llm([], "hello", {})
+    from ..registry.document_registry import get_config
+    config = get_config("mutual_nda")
+    result = call_llm([], "hello", {}, config)
     assert result.reply == plain_reply
-    assert result.extracted_fields == ExtractedFields()
+    assert result.extracted_fields == {}
     assert result.is_complete is False
 
 
@@ -189,10 +232,11 @@ def test_call_llm_plain_text_fallback(mock_call):
 def test_call_llm_float_response_fallback(mock_call):
     """When the LLM returns garbage like a float, show a generic error."""
     mock_call.side_effect = ["-1.1e-12", "-1.1e-12"]
-    result = call_llm([], "hello", {})
-    # -1.1e-12 is too short to be a useful reply
+    from ..registry.document_registry import get_config
+    config = get_config("mutual_nda")
+    result = call_llm([], "hello", {}, config)
     assert "unexpected response" in result.reply.lower()
-    assert result.extracted_fields == ExtractedFields()
+    assert result.extracted_fields == {}
 
 
 @patch("app.services.chat_service._do_llm_call")
@@ -200,9 +244,11 @@ def test_call_llm_retries_then_succeeds(mock_call):
     """First attempt returns garbage, second returns valid JSON."""
     valid_json = '{"reply": "Got it!", "extracted_fields": {"purpose": "Business eval"}, "is_complete": false}'
     mock_call.side_effect = ["-1.1e-12", valid_json]
-    result = call_llm([], "hello", {})
+    from ..registry.document_registry import get_config
+    config = get_config("mutual_nda")
+    result = call_llm([], "hello", {}, config)
     assert result.reply == "Got it!"
-    assert result.extracted_fields.purpose == "Business eval"
+    assert result.extracted_fields["purpose"] == "Business eval"
 
 
 def test_parse_llm_response_extracts_from_array():
@@ -232,44 +278,27 @@ def test_parse_llm_response_missing_reply_with_fields():
             "effectiveDate": "2026-03-16",
             "mndaTermType": "fixed",
             "mndaTermYears": 2,
-            "confidentialityTermType": "fixed",
-            "confidentialityTermYears": 1,
             "governingLaw": "Arizona",
             "jurisdiction": "Phoenix, AZ",
-            "modifications": None,
-            "party1": {
-                "name": "Amol Wanjare",
-                "title": None,
-                "company": "ASW",
-                "noticeAddress": None,
-                "date": None,
-            },
-            "party2": {
-                "name": None,
-                "title": None,
-                "company": None,
-                "noticeAddress": None,
-                "date": None,
-            },
         },
         "is_complete": False,
     })
     result = _parse_llm_response(raw)
-    # Should not raise — fields are preserved even without reply
-    assert result.extracted_fields.purpose == "to provide food"
-    assert result.extracted_fields.governingLaw == "Arizona"
-    assert result.extracted_fields.party1.name == "Amol Wanjare"
+    assert result.extracted_fields["purpose"] == "to provide food"
+    assert result.extracted_fields["governingLaw"] == "Arizona"
     assert result.is_complete is False
-    assert len(result.reply) > 0  # has some default reply
+    assert len(result.reply) > 0
 
 
 @patch("app.services.chat_service._do_llm_call")
 def test_call_llm_connection_failure_returns_fallback(mock_call):
     """When the LLM service is completely down, return a graceful fallback instead of raising."""
     mock_call.side_effect = ConnectionError("service unavailable")
-    result = call_llm([], "hello", {})
+    from ..registry.document_registry import get_config
+    config = get_config("mutual_nda")
+    result = call_llm([], "hello", {}, config)
     assert "unexpected response" in result.reply.lower()
-    assert result.extracted_fields == ExtractedFields()
+    assert result.extracted_fields == {}
     assert result.is_complete is False
 
 
@@ -278,5 +307,7 @@ def test_call_llm_connection_failure_then_succeeds(mock_call):
     """First attempt raises, second returns valid JSON."""
     valid_json = '{"reply": "Welcome!", "extracted_fields": {}, "is_complete": false}'
     mock_call.side_effect = [ConnectionError("timeout"), valid_json]
-    result = call_llm([], "hello", {})
+    from ..registry.document_registry import get_config
+    config = get_config("mutual_nda")
+    result = call_llm([], "hello", {}, config)
     assert result.reply == "Welcome!"

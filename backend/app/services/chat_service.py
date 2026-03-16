@@ -6,227 +6,30 @@ import logging
 from litellm import completion
 
 from ..config import settings
-from ..schemas.chat import ExtractedFields, LLMResponse
+from ..schemas.chat import LLMResponse
+from ..registry.document_registry import (
+    DocumentTypeConfig,
+    build_json_schema,
+    build_system_prompt,
+    build_discovery_system_prompt,
+    DISCOVERY_JSON_SCHEMA,
+    get_config,
+)
 
 logger = logging.getLogger(__name__)
-
-NDA_FIELD_SCHEMA = {
-    "type": "json_schema",
-    "json_schema": {
-        "name": "nda_extraction",
-        "strict": True,
-        "schema": {
-            "type": "object",
-            "properties": {
-                "reply": {"type": "string"},
-                "is_complete": {"type": "boolean"},
-                "extracted_fields": {
-                    "type": "object",
-                    "properties": {
-                        "purpose": {"type": ["string", "null"]},
-                        "effectiveDate": {"type": ["string", "null"]},
-                        "mndaTermType": {
-                            "type": ["string", "null"],
-                            "enum": ["fixed", "until_terminated", None],
-                        },
-                        "mndaTermYears": {"type": ["integer", "null"]},
-                        "confidentialityTermType": {
-                            "type": ["string", "null"],
-                            "enum": ["fixed", "perpetuity", None],
-                        },
-                        "confidentialityTermYears": {"type": ["integer", "null"]},
-                        "governingLaw": {"type": ["string", "null"]},
-                        "jurisdiction": {"type": ["string", "null"]},
-                        "modifications": {"type": ["string", "null"]},
-                        "party1": {
-                            "type": ["object", "null"],
-                            "properties": {
-                                "name": {"type": ["string", "null"]},
-                                "title": {"type": ["string", "null"]},
-                                "company": {"type": ["string", "null"]},
-                                "noticeAddress": {"type": ["string", "null"]},
-                                "date": {"type": ["string", "null"]},
-                            },
-                            "required": [
-                                "name",
-                                "title",
-                                "company",
-                                "noticeAddress",
-                                "date",
-                            ],
-                            "additionalProperties": False,
-                        },
-                        "party2": {
-                            "type": ["object", "null"],
-                            "properties": {
-                                "name": {"type": ["string", "null"]},
-                                "title": {"type": ["string", "null"]},
-                                "company": {"type": ["string", "null"]},
-                                "noticeAddress": {"type": ["string", "null"]},
-                                "date": {"type": ["string", "null"]},
-                            },
-                            "required": [
-                                "name",
-                                "title",
-                                "company",
-                                "noticeAddress",
-                                "date",
-                            ],
-                            "additionalProperties": False,
-                        },
-                    },
-                    "required": [
-                        "purpose",
-                        "effectiveDate",
-                        "mndaTermType",
-                        "mndaTermYears",
-                        "confidentialityTermType",
-                        "confidentialityTermYears",
-                        "governingLaw",
-                        "jurisdiction",
-                        "modifications",
-                        "party1",
-                        "party2",
-                    ],
-                    "additionalProperties": False,
-                },
-            },
-            "required": ["reply", "is_complete", "extracted_fields"],
-            "additionalProperties": False,
-        },
-    },
-}
-
-
-def build_system_prompt(current_nda_data: dict) -> str:
-    filled = []
-    missing_required = []
-    missing_optional = []
-
-    required_fields = [
-        ("purpose", "Purpose"),
-        ("effectiveDate", "Effective Date"),
-        ("mndaTermType", "MNDA Term Type"),
-        ("governingLaw", "Governing Law"),
-        ("jurisdiction", "Jurisdiction"),
-        ("party1.name", "Party 1 Name"),
-        ("party1.company", "Party 1 Company"),
-        ("party2.name", "Party 2 Name"),
-        ("party2.company", "Party 2 Company"),
-    ]
-
-    optional_fields = [
-        ("mndaTermYears", "MNDA Term Years"),
-        ("confidentialityTermType", "Confidentiality Term Type"),
-        ("confidentialityTermYears", "Confidentiality Term Years"),
-        ("modifications", "Modifications"),
-        ("party1.title", "Party 1 Title"),
-        ("party1.noticeAddress", "Party 1 Notice Address"),
-        ("party1.date", "Party 1 Date"),
-        ("party2.title", "Party 2 Title"),
-        ("party2.noticeAddress", "Party 2 Notice Address"),
-        ("party2.date", "Party 2 Date"),
-    ]
-
-    def get_value(path: str) -> str | None:
-        parts = path.split(".")
-        obj = current_nda_data
-        for p in parts:
-            if not isinstance(obj, dict):
-                return None
-            obj = obj.get(p)
-        return obj if obj else None
-
-    for path, label in required_fields:
-        val = get_value(path)
-        if val:
-            filled.append(f"  - {label}: {val}")
-        else:
-            missing_required.append(label)
-
-    for path, label in optional_fields:
-        val = get_value(path)
-        if val:
-            filled.append(f"  - {label}: {val}")
-        else:
-            missing_optional.append(label)
-
-    filled_str = "\n".join(filled) if filled else "  (none yet)"
-    missing_req_str = ", ".join(missing_required) if missing_required else "(all filled!)"
-    missing_opt_str = ", ".join(missing_optional) if missing_optional else "(all filled)"
-
-    return f"""You are a friendly, professional legal assistant helping a user draft a Mutual Non-Disclosure Agreement (MNDA) using the Common Paper standard template.
-
-Your goal is to have a natural conversation to collect all the information needed to fill in the NDA. Ask ONE question at a time. Be concise but helpful. If the user's answer is unclear, ask for clarification before setting the field.
-
-FIRST MESSAGE BEHAVIOR:
-When the user first greets you, welcome them warmly and briefly explain:
-1. What this tool does — it helps them create a legally-sound Mutual NDA based on the Common Paper standard (an industry-recognized open-source legal framework)
-2. How it works — you'll ask a series of questions to fill in the agreement fields, and they'll see a live preview of the document updating on the right side of the screen as they answer
-3. What you'll need from them — details about both parties (their company and the counterparty), the purpose of the NDA, governing law, and term preferences
-4. Then ask your first question about the purpose of the NDA
-
-THE NDA FIELDS YOU NEED TO COLLECT:
-
-GENERAL TERMS:
-- purpose (string): How confidential information may be used between the parties. Default: "Evaluating whether to enter into a business relationship with the other party."
-- effectiveDate (string, YYYY-MM-DD): When the agreement takes effect
-- mndaTermType ("fixed" or "until_terminated"): Does the MNDA expire after a fixed period or continue until terminated?
-- mndaTermYears (integer, 1-99): If mndaTermType is "fixed", how many years? (only needed if fixed)
-- confidentialityTermType ("fixed" or "perpetuity"): Does the confidentiality obligation last a fixed number of years or forever?
-- confidentialityTermYears (integer, 1-99): If confidentialityTermType is "fixed", how many years? (only needed if fixed)
-- governingLaw (string): Which US state's laws govern this agreement? Must be a full US state name.
-- jurisdiction (string): Where will legal proceedings take place? (e.g., "courts located in New Castle, DE")
-- modifications (string, optional): Any modifications to the standard terms
-
-PARTY 1 (the user's organization):
-- party1.name: Signatory's full legal name
-- party1.title: Signatory's job title (optional)
-- party1.company: Company legal name
-- party1.noticeAddress: Email or mailing address for legal notices (optional)
-- party1.date: Date of signing, YYYY-MM-DD (optional)
-
-PARTY 2 (the counterparty):
-- party2.name, party2.title, party2.company, party2.noticeAddress, party2.date (same fields)
-
-CURRENT STATE OF COLLECTED FIELDS:
-{filled_str}
-
-STILL NEEDED (required): {missing_req_str}
-STILL NEEDED (optional): {missing_opt_str}
-
-CONVERSATION FLOW:
-1. Start by greeting the user and asking about the purpose of the NDA
-2. Then ask about the effective date
-3. Then MNDA term (fixed or until terminated, and if fixed how many years)
-4. Then confidentiality term (fixed or perpetuity, and if fixed how many years)
-5. Then governing law (US state) and jurisdiction
-6. Then ask about any modifications to the standard terms
-7. Then collect Party 1 details (name, title, company, notice address)
-8. Then collect Party 2 details
-9. If a user provides multiple pieces of information at once, capture them all
-
-RULES:
-- In extracted_fields, include ALL fields you know so far (cumulative across the whole conversation), not just what was learned in this turn. Fields you don't know yet should be null.
-- Set is_complete to true ONLY when ALL required fields are filled: purpose, effectiveDate, mndaTermType, governingLaw, jurisdiction, party1.name, party1.company, party2.name, party2.company.
-- When is_complete is true, your reply MUST include the phrase "I've filled in all the fields, ready to generate!"
-- If the user wants to change a previously filled field, update it in extracted_fields.
-- Be conversational and natural. You can group related questions (e.g., "What's your name, title, and company?")."""
-
 
 _MAX_RETRIES = 2
 
 
-def _do_llm_call(messages: list[dict]) -> str:
+def _do_llm_call(messages: list[dict], response_format_schema: dict) -> str:
     """Call the LLM and return raw content as a string."""
     response = completion(
         model="openrouter/openai/gpt-oss-120b",
         messages=messages,
-        response_format=NDA_FIELD_SCHEMA,
+        response_format=response_format_schema,
         api_key=settings.OPENROUTER_API_KEY,
     )
     raw = response.choices[0].message.content
-    # Ensure we always work with a string
     if not isinstance(raw, str):
         raw = str(raw)
     return raw
@@ -243,7 +46,7 @@ def _parse_llm_response(raw: str) -> LLMResponse:
                 parsed = item
                 break
         else:
-            raise ValueError(f"JSON array contained no valid response object")
+            raise ValueError("JSON array contained no valid response object")
 
     if not isinstance(parsed, dict):
         raise ValueError(f"Expected JSON object, got {type(parsed).__name__}")
@@ -251,9 +54,13 @@ def _parse_llm_response(raw: str) -> LLMResponse:
         raise ValueError("JSON object missing both 'reply' and 'extracted_fields'")
 
     reply = parsed.get("reply") or "Got it, I've updated the fields. What would you like to do next?"
+    extracted = parsed.get("extracted_fields", {})
+    if not isinstance(extracted, dict):
+        extracted = {}
+
     return LLMResponse(
         reply=reply,
-        extracted_fields=ExtractedFields(**parsed.get("extracted_fields", {})),
+        extracted_fields=extracted,
         is_complete=parsed.get("is_complete", False),
     )
 
@@ -267,9 +74,18 @@ def _extract_plain_text_reply(raw: str) -> str | None:
 
 
 def call_llm(
-    history: list[dict], user_message: str, current_nda_data: dict
+    history: list[dict],
+    user_message: str,
+    current_data: dict,
+    config: DocumentTypeConfig | None = None,
 ) -> LLMResponse:
-    system_prompt = build_system_prompt(current_nda_data)
+    # Determine if we're in discovery mode or field-collection mode
+    if config is None:
+        system_prompt = build_discovery_system_prompt()
+        schema = DISCOVERY_JSON_SCHEMA
+    else:
+        system_prompt = build_system_prompt(config, current_data)
+        schema = build_json_schema(config)
 
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
@@ -279,12 +95,10 @@ def call_llm(
     last_raw = ""
     for attempt in range(_MAX_RETRIES):
         try:
-            raw = _do_llm_call(messages)
+            raw = _do_llm_call(messages, schema)
         except Exception as e:
             last_error = e
-            logger.warning(
-                "LLM call failed (attempt %d): %s", attempt + 1, e,
-            )
+            logger.warning("LLM call failed (attempt %d): %s", attempt + 1, e)
             continue
 
         last_raw = raw
@@ -298,31 +112,51 @@ def call_llm(
                 attempt + 1, e, raw[:500],
             )
 
-    # All retries failed — try to salvage a plain-text reply so the user
-    # still sees something useful instead of a generic error.
+    # All retries failed — try to salvage a plain-text reply
     logger.error("All %d LLM attempts failed: %s", _MAX_RETRIES, last_error)
     fallback = _extract_plain_text_reply(last_raw)
     if fallback:
         logger.info("Using plain-text fallback reply")
     return LLMResponse(
         reply=fallback or "I'm sorry, the AI service returned an unexpected response. Please try again.",
-        extracted_fields=ExtractedFields(),
+        extracted_fields={},
         is_complete=False,
     )
 
 
-def merge_nda_data(existing: dict, extracted: ExtractedFields) -> dict:
+def merge_document_data(
+    existing: dict, extracted: dict, config: DocumentTypeConfig | None = None,
+) -> dict:
+    """Merge extracted fields into existing document data.
+
+    Object-type fields (identified from config) are deep-merged.
+    None values are excluded.
+    """
     data = {**existing}
-    fields = extracted.model_dump(exclude_none=True)
 
-    party1 = fields.pop("party1", None)
-    party2 = fields.pop("party2", None)
+    # Filter out None values
+    clean = {k: v for k, v in extracted.items() if v is not None}
 
-    data.update(fields)
+    # Find object-type field keys from config
+    object_keys: set[str] = set()
+    if config:
+        for f in config.fields:
+            if f.field_type == "object":
+                object_keys.add(f.key)
 
-    if party1:
-        data["party1"] = {**data.get("party1", {}), **party1}
-    if party2:
-        data["party2"] = {**data.get("party2", {}), **party2}
+    for key, value in clean.items():
+        if key in object_keys and isinstance(value, dict):
+            # Deep merge nested object, excluding None values
+            existing_nested = data.get(key, {})
+            if isinstance(existing_nested, dict):
+                merged = {**existing_nested}
+                for nk, nv in value.items():
+                    if nv is not None:
+                        merged[nk] = nv
+                data[key] = merged
+            else:
+                data[key] = value
+        else:
+            data[key] = value
 
     return data

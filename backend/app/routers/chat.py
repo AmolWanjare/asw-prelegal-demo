@@ -16,7 +16,8 @@ from ..schemas.chat import (
     MessageOut,
 )
 from ..schemas.common import MessageResponse
-from ..services.chat_service import call_llm, merge_nda_data
+from ..services.chat_service import call_llm, merge_document_data
+from ..registry.document_registry import get_config, REGISTRY
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +42,26 @@ def send_message(
     if body.session_id is not None:
         conv = _get_session(db, body.session_id, user)
     else:
-        conv = Conversation(user_id=user.id, document_type="mutual_nda")
+        # Validate document type ("generic" is allowed for discovery mode)
+        doc_type = body.document_type
+        if doc_type != "generic" and doc_type not in REGISTRY:
+            raise HTTPException(status_code=400, detail=f"Unsupported document type: {doc_type}")
+        conv = Conversation(user_id=user.id, document_type=doc_type)
         db.add(conv)
         db.commit()
         db.refresh(conv)
 
-    current_nda_data = json.loads(conv.nda_data) if conv.nda_data else {}
+    current_data = json.loads(conv.document_data) if conv.document_data else {}
 
-    # Build history from existing DB messages (before adding the new one)
-    # Fetch most recent N messages, ordered by ID for deterministic ordering
+    # Load config for the document type (None if still in discovery)
+    config = None
+    if conv.document_type != "generic":
+        try:
+            config = get_config(conv.document_type)
+        except ValueError:
+            config = None
+
+    # Build history from existing DB messages
     db_messages = list(
         reversed(
             db.query(Message)
@@ -62,16 +74,28 @@ def send_message(
     history = [{"role": m.role, "content": m.content} for m in db_messages]
 
     try:
-        llm_response = call_llm(history, body.message, current_nda_data)
+        llm_response = call_llm(history, body.message, current_data, config)
     except Exception as e:
         logger.error("LLM call failed: %s", e)
         raise HTTPException(status_code=502, detail="AI service unavailable")
 
-    new_nda_data = merge_nda_data(current_nda_data, llm_response.extracted_fields)
-    conv.nda_data = json.dumps(new_nda_data)
+    # Check if LLM discovered a document type during the discovery phase
+    extracted = llm_response.extracted_fields
+    if conv.document_type == "generic" and isinstance(extracted.get("document_type"), str):
+        detected_type = extracted["document_type"]
+        if detected_type in REGISTRY:
+            conv.document_type = detected_type
+            # Update config now that we know the document type
+            config = get_config(detected_type)
+            # Remove discovery-specific field from extracted data
+            extracted = {k: v for k, v in extracted.items() if k != "document_type"}
+            llm_response = llm_response.model_copy(update={"extracted_fields": extracted})
+
+    new_data = merge_document_data(current_data, extracted, config)
+    conv.document_data = json.dumps(new_data)
     conv.is_complete = llm_response.is_complete
 
-    # Persist both user and assistant messages in a single commit
+    # Persist both user and assistant messages
     user_msg = Message(
         conversation_id=conv.id,
         role="user",
@@ -81,7 +105,9 @@ def send_message(
         conversation_id=conv.id,
         role="assistant",
         content=llm_response.reply,
-        field_updates=llm_response.extracted_fields.model_dump_json(exclude_none=True),
+        field_updates=json.dumps(
+            {k: v for k, v in extracted.items() if v is not None}
+        ) if extracted else None,
     )
     db.add(user_msg)
     db.add(assistant_msg)
@@ -92,9 +118,10 @@ def send_message(
         session_id=conv.id,
         message_id=assistant_msg.id,
         reply=llm_response.reply,
-        extracted_fields=llm_response.extracted_fields,
+        extracted_fields=extracted,
         is_complete=llm_response.is_complete,
-        nda_data=new_nda_data,
+        document_data=new_data,
+        document_type=conv.document_type,
     )
 
 
@@ -113,7 +140,8 @@ def get_session_messages(
     )
     return SessionMessagesResponse(
         session_id=conv.id,
-        nda_data=json.loads(conv.nda_data) if conv.nda_data else {},
+        document_data=json.loads(conv.document_data) if conv.document_data else {},
+        document_type=conv.document_type,
         is_complete=conv.is_complete,
         messages=[MessageOut.model_validate(m) for m in messages],
     )

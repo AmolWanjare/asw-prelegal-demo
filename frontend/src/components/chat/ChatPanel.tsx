@@ -12,6 +12,8 @@ interface ChatPanelProps {
   onSend: (message: string) => void;
   onGenerate: () => void;
   onStartOver: () => void;
+  subtitle?: string;
+  completionLabel?: string;
 }
 
 export function ChatPanel({
@@ -22,6 +24,8 @@ export function ChatPanel({
   onSend,
   onGenerate,
   onStartOver,
+  subtitle = "Legal Document Drafter",
+  completionLabel = "Document",
 }: ChatPanelProps) {
   const [input, setInput] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -30,6 +34,13 @@ export function ChatPanel({
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  // Auto-focus input after loading completes
+  useEffect(() => {
+    if (!isLoading && !isComplete) {
+      inputRef.current?.focus();
+    }
+  }, [isLoading, isComplete]);
 
   const handleSubmit = useCallback(() => {
     const trimmed = input.trim();
@@ -58,7 +69,7 @@ export function ChatPanel({
             </div>
             <div>
               <h2 className="text-sm font-semibold text-charcoal font-display">AI Assistant</h2>
-              <p className="text-[11px] text-warm-gray">Mutual NDA Drafter</p>
+              <p className="text-[11px] text-warm-gray">{subtitle}</p>
             </div>
           </div>
           <button
@@ -82,7 +93,7 @@ export function ChatPanel({
               </svg>
             </div>
             <p className="text-sm text-warm-gray">
-              Start a conversation to draft your NDA
+              Start a conversation to draft your document
             </p>
           </div>
         )}
@@ -121,14 +132,14 @@ export function ChatPanel({
         {isComplete && (
           <div className="mx-auto max-w-sm text-center px-5 py-4 bg-amber-muted border border-amber-border rounded-xl">
             <p className="text-sm font-medium text-charcoal mb-3">
-              Your NDA is ready!
+              Your {completionLabel} is ready!
             </p>
             <button
               type="button"
               onClick={onGenerate}
               className="px-6 py-2.5 text-sm font-semibold text-white bg-purple hover:bg-purple-hover rounded-lg transition-all duration-200 shadow-sm"
             >
-              Generate NDA
+              Generate {completionLabel}
             </button>
           </div>
         )}
