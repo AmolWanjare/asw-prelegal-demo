@@ -15,7 +15,7 @@ interface NDAStore {
   reset: () => void;
 }
 
-const initialFormData: NDAFormData = {
+export const initialFormData: NDAFormData = {
   purpose: DEFAULT_PURPOSE,
   effectiveDate: new Date().toISOString().split("T")[0],
   mndaTermType: "fixed",
