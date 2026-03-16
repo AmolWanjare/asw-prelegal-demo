@@ -1,34 +1,13 @@
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || "http://localhost:8000";
 
-export interface PartyPatch {
-  name?: string;
-  title?: string;
-  company?: string;
-  noticeAddress?: string;
-  date?: string;
-}
-
-export interface ExtractedFields {
-  purpose?: string;
-  effectiveDate?: string;
-  mndaTermType?: "fixed" | "until_terminated";
-  mndaTermYears?: number;
-  confidentialityTermType?: "fixed" | "perpetuity";
-  confidentialityTermYears?: number;
-  governingLaw?: string;
-  jurisdiction?: string;
-  modifications?: string;
-  party1?: PartyPatch;
-  party2?: PartyPatch;
-}
-
 export interface ChatMessageResponse {
   session_id: number;
   message_id: number;
   reply: string;
-  extracted_fields: ExtractedFields;
+  extracted_fields: Record<string, unknown>;
   is_complete: boolean;
-  nda_data: Record<string, unknown>;
+  document_data: Record<string, unknown>;
+  document_type: string;
 }
 
 export interface MessageOut {
@@ -41,23 +20,36 @@ export interface MessageOut {
 
 export interface SessionMessagesResponse {
   session_id: number;
-  nda_data: Record<string, unknown>;
+  document_data: Record<string, unknown>;
+  document_type: string;
   is_complete: boolean;
   messages: MessageOut[];
 }
 
+export interface CatalogItem {
+  slug: string;
+  display_name: string;
+  description: string;
+  filename: string;
+}
+
 export async function sendChatMessage(
   message: string,
-  sessionId: number | null
+  sessionId: number | null,
+  documentType?: string
 ): Promise<ChatMessageResponse> {
+  const body: Record<string, unknown> = {
+    message,
+    session_id: sessionId,
+  };
+  if (!sessionId && documentType) {
+    body.document_type = documentType;
+  }
   const res = await fetch(`${API_BASE}/api/chat/message`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     credentials: "include",
-    body: JSON.stringify({
-      message,
-      session_id: sessionId,
-    }),
+    body: JSON.stringify(body),
   });
   if (!res.ok) {
     const err = await res.json().catch(() => ({ detail: "Request failed" }));
@@ -125,4 +117,13 @@ export async function signUp(
     body: JSON.stringify({ email, password, full_name: fullName }),
   });
   return res.ok;
+}
+
+export async function fetchCatalog(): Promise<CatalogItem[]> {
+  const res = await fetch(`${API_BASE}/api/catalog`);
+  if (!res.ok) {
+    throw new Error(`Failed to fetch catalog: ${res.status}`);
+  }
+  const data = await res.json();
+  return data.items;
 }

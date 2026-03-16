@@ -76,11 +76,24 @@ Backend available at http://localhost:8000
 ### Completed (PR-5 continued)
 - **Auto-Greet**: New chat sessions auto-send a greeting so the AI introduces itself immediately
 - **Static Frontend Serving**: Next.js static export (`frontend/out/`) served via FastAPI `StaticFiles` mount in Docker (Dockerfile copies build to `./static`)
-- **Home Redirect**: Root `/` redirects to `/nda/chat` as primary entry point
+- **Home Redirect**: Root `/` redirects to `/chat` as primary entry point
 - **LLM Retry & Robustness**: `call_llm` retries up to 2 attempts, handles JSON arrays, missing `reply` fields, plain-text fallbacks, and connection failures gracefully
 - **Tests**: 10 additional unit tests for LLM parsing edge cases (17 total chat tests)
 
+### Completed (PR-6: All document types)
+- **Document Registry**: `backend/app/registry/document_registry.py` defines all 11 document types (NDA, CSA, SLA, DPA, PSA, Partnership, Software License, Pilot, BAA, AI Addendum, Design Partner) with field specs, JSON schemas, and system prompts built dynamically
+- **Discovery Mode**: New chat sessions start in `"generic"` mode — AI identifies what document the user needs from conversation, then transitions to field collection for that specific type
+- **Unsupported Document Handling**: AI gracefully declines unsupported document types and suggests the closest available match from the catalog
+- **Catalog API**: `GET /api/catalog` endpoint serves the document type catalog (no auth required)
+- **Generic Document Preview**: `DocumentFieldsPreview` component shows collected fields as a styled card/table for all non-NDA document types, updating live
+- **Unified Chat Route**: Root `/` now redirects to `/chat` (generic entry point); `/nda/chat` still works for backward compatibility
+- **Input Focus Fix**: Textarea auto-focuses after AI responds, so users can immediately type their next answer
+- **Start Over Fix**: "Start Over" now re-greets the user with the AI instead of leaving an empty chat
+- **Model Rename**: `nda_data` column → `document_data` for generic document support
+- **Per-Document PDF**: Generate and download PDF for any document type (NDA uses full preview, others use field summary)
+- **Tests**: 32 backend tests (catalog, generic sessions, document type validation), 131 frontend tests all passing
+
 ### Not Yet Implemented
 - Document CRUD endpoints (create, save, list, retrieve documents)
-- Support for document types beyond NDA in the frontend
+- Full preview/render components for non-NDA document types (currently shows field summary)
 - Document persistence (database models/tables for documents beyond chat sessions)

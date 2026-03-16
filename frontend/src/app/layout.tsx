@@ -15,9 +15,9 @@ const playfair = Playfair_Display({
 });
 
 export const metadata: Metadata = {
-  title: "Mutual NDA Creator | Prelegal",
+  title: "Prelegal AI | Legal Document Drafting",
   description:
-    "Create and download Mutual Non-Disclosure Agreements using CommonPaper standard templates.",
+    "Draft legal agreements using AI-guided chat with CommonPaper standard templates.",
 };
 
 export default function RootLayout({
