@@ -77,7 +77,7 @@ Backend available at http://localhost:8000
 - **Auto-Greet**: New chat sessions auto-send a greeting so the AI introduces itself immediately
 - **Static Frontend Serving**: Next.js static export (`frontend/out/`) served via FastAPI `StaticFiles` mount in Docker (Dockerfile copies build to `./static`)
 - **Home Redirect**: Root `/` redirects to `/chat` as primary entry point
-- **LLM Retry & Robustness**: `call_llm` retries up to 2 attempts, handles JSON arrays, missing `reply` fields, plain-text fallbacks, and connection failures gracefully
+- **LLM Retry & Robustness**: `call_llm` retries up to 3 attempts, handles JSON arrays, missing `reply` fields, plain-text fallbacks, numeric garbage rejection, and connection failures gracefully; includes a JSON enforcement system message to improve model compliance
 - **Tests**: 10 additional unit tests for LLM parsing edge cases (17 total chat tests)
 
 ### Completed (PR-6: All document types)
@@ -88,6 +88,7 @@ Backend available at http://localhost:8000
 - **Generic Document Preview**: `DocumentFieldsPreview` component shows collected fields as a styled card/table for all non-NDA document types, updating live
 - **Unified Chat Route**: Root `/` now redirects to `/chat` (generic entry point); `/nda/chat` still works for backward compatibility
 - **Input Focus Fix**: Textarea auto-focuses after AI responds, so users can immediately type their next answer
+- **ServerData Guard**: `serverDataToFormData` handles undefined/non-object `serverData` gracefully, preventing destructuring crashes on stale or missing document data
 - **Start Over Fix**: "Start Over" now re-greets the user with the AI instead of leaving an empty chat
 - **Model Rename**: `nda_data` column → `document_data` for generic document support
 - **Per-Document PDF**: Generate and download PDF for any document type (NDA uses full preview, others use field summary)
