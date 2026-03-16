@@ -214,6 +214,58 @@ RULES:
 - Be conversational and natural. You can group related questions (e.g., "What's your name, title, and company?")."""
 
 
+_MAX_RETRIES = 2
+
+
+def _do_llm_call(messages: list[dict]) -> str:
+    """Call the LLM and return raw content as a string."""
+    response = completion(
+        model="openrouter/openai/gpt-oss-120b",
+        messages=messages,
+        response_format=NDA_FIELD_SCHEMA,
+        api_key=settings.OPENROUTER_API_KEY,
+    )
+    raw = response.choices[0].message.content
+    # Ensure we always work with a string
+    if not isinstance(raw, str):
+        raw = str(raw)
+    return raw
+
+
+def _parse_llm_response(raw: str) -> LLMResponse:
+    """Parse a raw LLM string into a typed LLMResponse."""
+    parsed = json.loads(raw)
+
+    # Model sometimes returns a list — find the first dict with a "reply" key
+    if isinstance(parsed, list):
+        for item in parsed:
+            if isinstance(item, dict) and "reply" in item:
+                parsed = item
+                break
+        else:
+            raise ValueError(f"JSON array contained no valid response object")
+
+    if not isinstance(parsed, dict):
+        raise ValueError(f"Expected JSON object, got {type(parsed).__name__}")
+    if "reply" not in parsed and "extracted_fields" not in parsed:
+        raise ValueError("JSON object missing both 'reply' and 'extracted_fields'")
+
+    reply = parsed.get("reply") or "Got it, I've updated the fields. What would you like to do next?"
+    return LLMResponse(
+        reply=reply,
+        extracted_fields=ExtractedFields(**parsed.get("extracted_fields", {})),
+        is_complete=parsed.get("is_complete", False),
+    )
+
+
+def _extract_plain_text_reply(raw: str) -> str | None:
+    """Try to extract a usable reply from a non-JSON LLM response."""
+    text = raw.strip().strip('"').strip()
+    if len(text) > 10:
+        return text
+    return None
+
+
 def call_llm(
     history: list[dict], user_message: str, current_nda_data: dict
 ) -> LLMResponse:
@@ -223,32 +275,40 @@ def call_llm(
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
 
-    response = completion(
-        model="openrouter/openai/gpt-oss-120b",
-        messages=messages,
-        response_format=NDA_FIELD_SCHEMA,
-        api_key=settings.OPENROUTER_API_KEY,
+    last_error = None
+    last_raw = ""
+    for attempt in range(_MAX_RETRIES):
+        try:
+            raw = _do_llm_call(messages)
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "LLM call failed (attempt %d): %s", attempt + 1, e,
+            )
+            continue
+
+        last_raw = raw
+        logger.info("LLM raw response (attempt %d): %s", attempt + 1, raw[:500])
+        try:
+            return _parse_llm_response(raw)
+        except Exception as e:
+            last_error = e
+            logger.warning(
+                "Failed to parse LLM response (attempt %d): %s — raw: %s",
+                attempt + 1, e, raw[:500],
+            )
+
+    # All retries failed — try to salvage a plain-text reply so the user
+    # still sees something useful instead of a generic error.
+    logger.error("All %d LLM attempts failed: %s", _MAX_RETRIES, last_error)
+    fallback = _extract_plain_text_reply(last_raw)
+    if fallback:
+        logger.info("Using plain-text fallback reply")
+    return LLMResponse(
+        reply=fallback or "I'm sorry, the AI service returned an unexpected response. Please try again.",
+        extracted_fields=ExtractedFields(),
+        is_complete=False,
     )
-
-    raw = response.choices[0].message.content
-    logger.info("LLM raw response: %s", raw[:500])
-
-    try:
-        parsed = json.loads(raw)
-        return LLMResponse(
-            reply=parsed.get("reply", "I'm sorry, could you repeat that?"),
-            extracted_fields=ExtractedFields(
-                **parsed.get("extracted_fields", {})
-            ),
-            is_complete=parsed.get("is_complete", False),
-        )
-    except Exception as e:
-        logger.error("Failed to parse LLM response: %s — raw: %s", e, raw[:500])
-        return LLMResponse(
-            reply=raw if isinstance(raw, str) else "I'm sorry, something went wrong. Could you try again?",
-            extracted_fields=ExtractedFields(),
-            is_complete=False,
-        )
 
 
 def merge_nda_data(existing: dict, extracted: ExtractedFields) -> dict:
