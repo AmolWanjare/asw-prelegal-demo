@@ -25,6 +25,7 @@ function serverDataToFormData(
   serverData: Record<string, unknown>
 ): NDAFormData {
   const base = { ...initialFormData };
+  if (!serverData || typeof serverData !== "object") return base;
   const { party1, party2, ...top } = serverData;
 
   for (const [k, v] of Object.entries(top)) {
