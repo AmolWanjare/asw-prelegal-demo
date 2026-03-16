@@ -18,7 +18,7 @@ from ..registry.document_registry import (
 
 logger = logging.getLogger(__name__)
 
-_MAX_RETRIES = 2
+_MAX_RETRIES = 3
 
 
 def _do_llm_call(messages: list[dict], response_format_schema: dict) -> str:
@@ -68,6 +68,12 @@ def _parse_llm_response(raw: str) -> LLMResponse:
 def _extract_plain_text_reply(raw: str) -> str | None:
     """Try to extract a usable reply from a non-JSON LLM response."""
     text = raw.strip().strip('"').strip()
+    # Reject numeric-only garbage, very short strings, etc.
+    try:
+        float(text)
+        return None  # It's just a number
+    except ValueError:
+        pass
     if len(text) > 10:
         return text
     return None
@@ -90,6 +96,11 @@ def call_llm(
     messages = [{"role": "system", "content": system_prompt}]
     messages.extend(history)
     messages.append({"role": "user", "content": user_message})
+    # Reinforce JSON output — some models ignore response_format
+    messages.append({
+        "role": "system",
+        "content": "CRITICAL: You MUST respond with a valid JSON object containing \"reply\", \"is_complete\", and \"extracted_fields\" keys. Do NOT respond with plain text, numbers, or anything other than a JSON object.",
+    })
 
     last_error = None
     last_raw = ""
